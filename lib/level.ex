@@ -23,14 +23,6 @@ defmodule Level do
       |> :zlib.gzip
   end
   
-  defp to_binary([head | []]) do
-    << head::8 >>
-  end
-  
-  defp to_binary([head | tail]) do
-    << head::8 >> <> to_binary(tail)
-  end
-  
   defp prepend_size(list) do
     <<0::8, 16::8, 0::8, 0::8, list :: binary>>
   end
