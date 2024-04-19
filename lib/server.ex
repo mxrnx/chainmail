@@ -1,6 +1,6 @@
 defmodule Server do
   require Logger
-  @port 25565
+  @port 25566
   
   def start(_, _) do
     pid = spawn(fn -> start() end)
@@ -16,7 +16,8 @@ defmodule Server do
         start: {Listener, :start, [@port, self()]}
       },
       {Registry, keys: :unique, name: ClientSenders},
-      Players
+      Players,
+      Level
     ]
 
     {:ok, supervisor_pid} = Supervisor.start_link(children, strategy: :one_for_one, auto_shutdown: :never)
