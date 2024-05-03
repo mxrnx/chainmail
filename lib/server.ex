@@ -1,6 +1,6 @@
 defmodule Server do
   require Logger
-  @port 25566
+  @port 25565
   
   def start(_, _) do
     pid = spawn(fn -> start() end)
@@ -15,7 +15,6 @@ defmodule Server do
         id: Listener,
         start: {Listener, :start, [@port, self()]}
       },
-      {Registry, keys: :unique, name: ClientSenders},
       Players,
       Level
     ]
@@ -31,8 +30,10 @@ defmodule Server do
       {:shutdown} ->
         Logger.info("Shutting down server")
         System.stop(0)
+      {:set_block, packet} ->
+        Enum.map(Players.all(), & send(&1.sender_pid, packet))
       _ ->
-        Logger.info("Unknown")
+        Logger.info("Received unknown message")
         main(supervisor_id)
     end
   end

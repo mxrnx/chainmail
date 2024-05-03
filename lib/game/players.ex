@@ -14,12 +14,16 @@ defmodule Players do
   def remove(id) do
     Agent.update(__MODULE__, fn players -> Enum.reject(players, &(&1.id == id)) end)
   end
+
+  def all() do
+    Agent.get(__MODULE__, & &1)
+  end
   
-  def next_id do
+  defp next_id do
     next_id(1, Agent.get(__MODULE__, fn players -> Enum.map(players, &(&1.id)) end))
   end
   
-  def next_id(id, ids) do
+  defp next_id(id, ids) do
     if !Enum.any?(ids, & &1 == id) do
       id
     else

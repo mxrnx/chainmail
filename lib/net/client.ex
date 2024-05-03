@@ -14,40 +14,29 @@ defmodule Client do
     sender_pid = spawn_link(fn -> client_sender(socket, packet_contents) end)
     Players.add(username, sender_pid)
     send(sender_pid, Packets.server_identification("Elixir server", "Server running on elixir", false))
-    Process.sleep(800)
     send(sender_pid, Packets.level_initialize())
-    Process.sleep(800)
     send_level(sender_pid)
-    Logger.info("hey hoi")
     send(sender_pid, Packets.level_finalize())
-    Process.sleep(800)
     send(sender_pid, Packets.ping())
-    Process.sleep(800)
     send(sender_pid, Packets.ping())
-    Process.sleep(800)
     # TODO: BROADCAST
-    send(sender_pid, Packets.spawn_player())
-    #Registry.register(ClientSenders, 1, pid)
+    send(sender_pid, Packets.spawn_player(username))
   end
   
   defp send_level(sender_pid) do
     Level.to_gzip()
-      |> log
       |> to_list
       |> chunk_every(@max_chunk_size)
       |> send_chunks(sender_pid)
   end
   
   defp send_chunks([chunk], sender_pid) do
-    Logger.info("next chunk")
     send(sender_pid, Packets.level_data_chunk(chunk))
-    Process.sleep(800)
   end
   
   defp send_chunks([chunk | chunks], sender_pid) do
-    Logger.info("#{length(chunks) + 1} chunks")
+    Logger.info("Sending #{length(chunks) + 1} chunks")
     send(sender_pid, Packets.level_data_chunk(chunk))
-    Process.sleep(800)
     send_chunks(chunks, sender_pid)
   end
   
@@ -67,21 +56,10 @@ defmodule Client do
     end
   end
   
-  def log(x) do
-    if is_binary(x) do
-      Logger.info("binary")
-    else
-      Logger.info("not binary")
-    end
-    x
-  end
-  
   defp client_sender(socket, packet_contents) do
     receive do
-      << id >> <> packet -> 
-        Logger.info("Sending packet #{id}")
-        status = :gen_tcp.send(socket, <<id>> <> packet)
-        Logger.info("Done! #{status}")
+      packet -> 
+        :gen_tcp.send(socket, packet)
     end
     client_sender(socket, packet_contents)
   end
@@ -90,15 +68,23 @@ defmodule Client do
     case packet do
       <<0, 7, username::binary-size(64), password::binary-size(64), _unused::binary-size(1)>> -> 
         create_player(socket, packet, username, password)
+        nil
+      <<5, x::binary-size(2), y::binary-size(2), z::binary-size(2), mode::binary-size(1), block::binary-size(1) >> ->
+        block_value = Level.set_block(x, y, z, mode, block)
+        {:set_block, Packets.set_block(x, y, z, block_value)}
+      _ -> 
+        IO.inspect(packet, binaries: :as_binaries)
+        nil
     end
   end
   
   defp listen(socket, server_pid) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, packet} -> 
-        Logger.info(packet)
-        #IO.inspect(packet, binaries: :as_binaries)
-        handle_packet(socket, packet)
+        action = handle_packet(socket, packet)
+        if action do
+          send(server_pid, action)
+        end
         listen(socket, server_pid)
       {:error, reason} -> 
         Logger.error("Could not receive from client: #{reason}")

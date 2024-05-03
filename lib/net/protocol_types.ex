@@ -1,4 +1,4 @@
-defmodule ProtocolTypes do
+defmodule T do
   def short(number) do
     << number::integer-big-signed-size(16) >>
   end
