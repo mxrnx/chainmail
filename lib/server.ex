@@ -30,11 +30,15 @@ defmodule Server do
       {:shutdown} ->
         Logger.info("Shutting down server")
         System.stop(0)
+      {:spawn_player, player_id, packet} ->
+        Logger.info("Broadcasting player spawn")
+        Enum.map(Enum.reject(Players.all(), &(&1.id == player_id)), & send(&1.sender_pid, packet))
       {:set_block, packet} ->
+        Logger.info("Received set block message")
         Enum.map(Players.all(), & send(&1.sender_pid, packet))
       _ ->
         Logger.info("Received unknown message")
-        main(supervisor_id)
     end
+    main(supervisor_id)
   end
 end

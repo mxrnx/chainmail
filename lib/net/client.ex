@@ -10,17 +10,20 @@ defmodule Client do
   
   defp create_player(socket, packet_contents, username, _password) do
     # TODO: password check
-    Logger.info(username)
+    Logger.info("Client connecting with username #{username}")
     sender_pid = spawn_link(fn -> client_sender(socket, packet_contents) end)
-    Players.add(username, sender_pid)
+    player_id = Players.add(username, sender_pid)
     send(sender_pid, Packets.server_identification("Elixir server", "Server running on elixir", false))
+
     send(sender_pid, Packets.level_initialize())
     send_level(sender_pid)
     send(sender_pid, Packets.level_finalize())
-    send(sender_pid, Packets.ping())
-    send(sender_pid, Packets.ping())
-    # TODO: BROADCAST
+
+    send(sender_pid, Packets.ping()) # TODO: can be removed, pings should happen on a timer
+
     send(sender_pid, Packets.spawn_player(username))
+
+    player_id # return player id in order to broadcast to other players
   end
   
   defp send_level(sender_pid) do
@@ -67,8 +70,8 @@ defmodule Client do
   defp handle_packet(socket, packet) do
     case packet do
       <<0, 7, username::binary-size(64), password::binary-size(64), _unused::binary-size(1)>> -> 
-        create_player(socket, packet, username, password)
-        nil
+        player_id = create_player(socket, packet, username, password)
+        {:spawn_player, player_id, Packets.spawn_player(username, player_id)}
       <<5, x::binary-size(2), y::binary-size(2), z::binary-size(2), mode::binary-size(1), block::binary-size(1) >> ->
         block_value = Level.set_block(x, y, z, mode, block)
         {:set_block, Packets.set_block(x, y, z, block_value)}

@@ -18,7 +18,7 @@ defmodule Players do
   def all() do
     Agent.get(__MODULE__, & &1)
   end
-  
+
   defp next_id do
     next_id(1, Agent.get(__MODULE__, fn players -> Enum.map(players, &(&1.id)) end))
   end
