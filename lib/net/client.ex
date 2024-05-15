@@ -131,6 +131,7 @@ defmodule Client do
             send_to_all(packet)
           {:to_all_except, player_id, packet} ->
             send_to_all_except(player_id, packet)
+          nil -> :ok
         end
         listen(socket, server_pid, player_id)
       {:error, reason} -> 
