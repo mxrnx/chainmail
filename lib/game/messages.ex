@@ -1,6 +1,10 @@
 defmodule Messages do
   def player_join(player_name) do
-    "&e* #{player_name} joined the game."
+    "&6#{player_name}&f joined the game."
+  end
+
+  def player_leave(player_name) do
+    "&6#{player_name}&f left the game."
   end
 
   def player_message(player_name, message) do

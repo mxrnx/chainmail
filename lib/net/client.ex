@@ -115,7 +115,14 @@ defmodule Client do
         end
         listen(socket, server_pid, player_id)
       {:error, reason} -> 
+        despawn_player(server_pid, player_id)
         Logger.error("Could not receive from client: #{reason}")
     end
+  end
+
+  defp despawn_player(server_pid, player_id) do
+    player = Players.get(player_id)
+    send(server_pid, {:to_all, Packets.message(player.id, Messages.player_leave(player.name))})
+    send(server_pid, {:to_all, Packets.despawn_player(player.id)})
   end
 end

@@ -38,6 +38,10 @@ defmodule Packets do
     << 8, player_id >> <> x <> y <> z <> yaw <> pitch
   end
 
+  def despawn_player(player_id) do
+    << 12, player_id >>
+  end
+
   def message(player_id, message) do
     << 13, player_id >> <> pad_string(message)
   end
