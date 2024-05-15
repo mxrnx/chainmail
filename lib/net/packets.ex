@@ -34,6 +34,14 @@ defmodule Packets do
     << 7, id>> <> pad_string(name) <> T.short(32 * x) <> T.short(32 * y) <> T.short(32 * z) <> << 0, 0 >>
   end
 
+  def move_player(player_id, <<x::binary-size(2)>>, <<y::binary-size(2)>>, <<z::binary-size(2)>>, <<yaw::binary-size(1)>>, <<pitch::binary-size(1)>>) do
+    << 8, player_id >> <> x <> y <> z <> yaw <> pitch
+  end
+
+  def disconnect_player(reason) do
+    << 14 >> <> pad_string(reason)
+  end
+
   defp pad_binary(data, pad) do
     actualpad = pad - byte_size(data)
     if actualpad > 0 do

@@ -1,6 +1,7 @@
 defmodule Server do
   require Logger
   @port 25565
+  @password "chunky bacon"
   
   def start(_, _) do
     pid = spawn(fn -> start() end)
@@ -30,15 +31,17 @@ defmodule Server do
       {:shutdown} ->
         Logger.info("Shutting down server")
         System.stop(0)
-      {:spawn_player, player_id, packet} ->
-        Logger.info("Broadcasting player spawn")
-        Enum.map(Enum.reject(Players.all(), &(&1.id == player_id)), & send(&1.sender_pid, packet))
-      {:set_block, packet} ->
-        Logger.info("Received set block message")
+      {:to_all, packet} ->
         Enum.map(Players.all(), & send(&1.sender_pid, packet))
+      {:to_all_except, player_id, packet} ->
+        Enum.map(Enum.reject(Players.all(), &(&1.id == player_id)), & send(&1.sender_pid, packet))
       _ ->
         Logger.info("Received unknown message")
     end
     main(supervisor_id)
+  end
+
+  def correct_password?(password) do
+    !@password || @password == String.trim_trailing(password)
   end
 end

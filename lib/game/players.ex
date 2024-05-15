@@ -5,9 +5,9 @@ defmodule Players do
     Agent.start_link(fn -> [] end, name: __MODULE__)
   end
   
-  def add(username, sender_pid) do
+  def add(name, sender_pid) do
     id = next_id()
-    Agent.update(__MODULE__, fn players -> [%Player{name: username, id: id, sender_pid: sender_pid} | players] end)
+    Agent.update(__MODULE__, fn players -> [%Player{name: name, id: id, sender_pid: sender_pid} | players] end)
     id
   end
   
