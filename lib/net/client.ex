@@ -9,7 +9,7 @@ defmodule Client do
   end
   
   defp create_player(socket, name) do
-    # TODO: password check
+    name = String.trim_trailing(name)
     Logger.info("Client connecting with name #{name}")
     sender_pid = spawn_link(fn -> client_sender(socket) end)
     other_players = Players.all() # Get list of players before the current one is added
@@ -25,6 +25,7 @@ defmodule Client do
     # Spawn self and others
     send(sender_pid, Packets.spawn_player(name))
     Enum.map(other_players, & send(sender_pid, Packets.spawn_player(&1.name, &1.id)))
+    Enum.map(other_players, & send(&1.sender_pid, Packets.message(player_id, Messages.player_join(name))))
 
     player_id # return player id in order to broadcast to other players
   end
@@ -72,11 +73,15 @@ defmodule Client do
   
   defp handle_packet(packet, player_id) do
     case packet do
-      <<5, x::binary-size(2), y::binary-size(2), z::binary-size(2), mode::binary-size(1), block::binary-size(1) >> ->
+      << 5, x::binary-size(2), y::binary-size(2), z::binary-size(2), mode::binary-size(1), block::binary-size(1) >> ->
         block_value = Level.set_block(x, y, z, mode, block)
         {:to_all, Packets.set_block(x, y, z, block_value)}
-      <<8, 255, x::binary-size(2), y::binary-size(2), z::binary-size(2), yaw::binary-size(1), pitch::binary-size(1) >> ->
+      << 8, 255, x::binary-size(2), y::binary-size(2), z::binary-size(2), yaw::binary-size(1), pitch::binary-size(1) >> ->
         {:to_all, Packets.move_player(player_id, x, y, z, yaw, pitch)}
+      << 13, 255, message::binary-size(64) >> ->
+        name = Players.get(player_id).name
+        Logger.info(message)
+        {:to_all, Packets.message(player_id, Messages.player_message(name, message))}
       _ -> 
         IO.inspect(packet, binaries: :as_binaries)
         nil

@@ -38,6 +38,10 @@ defmodule Packets do
     << 8, player_id >> <> x <> y <> z <> yaw <> pitch
   end
 
+  def message(player_id, message) do
+    << 13, player_id >> <> pad_string(message)
+  end
+
   def disconnect_player(reason) do
     << 14 >> <> pad_string(reason)
   end

@@ -10,6 +10,10 @@ defmodule Players do
     Agent.update(__MODULE__, fn players -> [%Player{name: name, id: id, sender_pid: sender_pid} | players] end)
     id
   end
+
+  def get(id) do
+    Agent.get(__MODULE__, fn players -> Enum.find(players, &(&1.id == id)) end)
+  end
   
   def remove(id) do
     Agent.update(__MODULE__, fn players -> Enum.reject(players, &(&1.id == id)) end)
