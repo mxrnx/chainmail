@@ -7,44 +7,68 @@ defmodule Client do
   def start(socket, server_pid) do
     spawn_link(fn -> listen_for_identification(socket, server_pid) end)
   end
+
+  def send_to_player(player_id, packet) do
+    socket = Players.get(player_id).socket
+    send_to_socket(socket, packet, player_id)
+  end
+
+  def send_to_all(packet) do
+    Enum.map(Players.all(), & send_to_socket(&1.socket, packet, &1.id))
+  end
+
+  def send_to_all_except(player_id, packet) do
+    Enum.map(Enum.reject(Players.all(), &(&1.id == player_id)), & send_to_socket(&1.socket, packet, &1.id))
+  end
+
+  defp send_to_socket(socket, packet, player_id) do
+    case :gen_tcp.send(socket, packet) do
+      :ok -> :ok
+      {:error, _reason} ->
+        despawn_player(player_id)
+    end
+  end
   
   defp create_player(socket, name) do
     name = String.trim_trailing(name)
     Logger.info("Client connecting with name #{name}")
-    sender_pid = spawn_link(fn -> client_sender(socket) end)
     other_players = Players.all() # Get list of players before the current one is added
-    player_id = Players.add(name, sender_pid)
-    send(sender_pid, Packets.server_identification("Elixir server", "Server running on elixir", false))
+    player_id = Players.add(name, socket)
+    send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
 
-    send(sender_pid, Packets.level_initialize())
-    send_level(sender_pid)
-    send(sender_pid, Packets.level_finalize())
+    send_to_player(player_id, Packets.level_initialize())
+    send_level(player_id)
+    send_to_player(player_id, Packets.level_finalize())
 
-    send(sender_pid, Packets.ping()) # TODO: can be removed, pings should happen on a timer
+    send_to_player(player_id, Packets.ping()) # TODO: can be removed, pings should happen on a timer
 
     # Spawn self and others
-    send(sender_pid, Packets.spawn_player(name))
-    Enum.map(other_players, & send(sender_pid, Packets.spawn_player(&1.name, &1.id)))
-    Enum.map(other_players, & send(&1.sender_pid, Packets.message(player_id, Messages.player_join(name))))
+    send_to_player(player_id, Packets.spawn_player(name))
+    Enum.map(other_players, & send_to_player(player_id, Packets.spawn_player(&1.name, &1.id)))
+    send_to_all(Packets.message(player_id, Messages.player_join(name)))
 
     player_id # return player id in order to broadcast to other players
   end
   
-  defp send_level(sender_pid) do
+  defp send_level(player_id) do
     Level.to_gzip()
       |> to_list
       |> chunk_every(@max_chunk_size)
-      |> send_chunks(sender_pid)
+      |> send_chunks(player_id)
   end
   
-  defp send_chunks([chunk], sender_pid) do
-    send(sender_pid, Packets.level_data_chunk(chunk))
+  defp send_chunks([chunk], player_id) do
+    send_chunk(chunk, player_id)
   end
   
-  defp send_chunks([chunk | chunks], sender_pid) do
+  defp send_chunks([chunk | chunks], player_id) do
     Logger.info("Sending #{length(chunks) + 1} chunks")
-    send(sender_pid, Packets.level_data_chunk(chunk))
-    send_chunks(chunks, sender_pid)
+    send_chunk(chunk, player_id)
+    send_chunks(chunks, player_id)
+  end
+
+  defp send_chunk(chunk, player_id) do
+    send_to_player(player_id, Packets.level_data_chunk(chunk))
   end
   
   defp to_list(<< head::8 >>) do
@@ -61,14 +85,6 @@ defmodule Client do
     else
       [Enum.take(data, max_size) | chunk_every(Enum.drop(data, max_size), max_size)]
     end
-  end
-  
-  defp client_sender(socket) do
-    receive do
-      packet -> 
-        :gen_tcp.send(socket, packet)
-    end
-    client_sender(socket)
   end
   
   defp handle_packet(packet, player_id) do
@@ -93,7 +109,7 @@ defmodule Client do
       {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
         if Server.correct_password?(password) do
           player_id = create_player(socket, name)
-          send(server_pid, {:to_all_except, player_id, Packets.spawn_player(name, player_id)})
+          send_to_all_except(player_id, Packets.spawn_player(name, player_id))
           listen(socket, server_pid, player_id)
         else
           :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
@@ -110,19 +126,27 @@ defmodule Client do
     case :gen_tcp.recv(socket, 0) do
       {:ok, packet} -> 
         action = handle_packet(packet, player_id)
-        if action do
-          send(server_pid, action)
+        case action do
+          {:to_all, packet} ->
+            send_to_all(packet)
+          {:to_all_except, player_id, packet} ->
+            send_to_all_except(player_id, packet)
         end
         listen(socket, server_pid, player_id)
       {:error, reason} -> 
-        despawn_player(server_pid, player_id)
+        despawn_player(player_id)
         Logger.error("Could not receive from client: #{reason}")
     end
   end
 
-  defp despawn_player(server_pid, player_id) do
+  defp despawn_player(player_id) do
+    Logger.info("Trying to despawn player with id #{player_id}")
     player = Players.get(player_id)
-    send(server_pid, {:to_all, Packets.message(player.id, Messages.player_leave(player.name))})
-    send(server_pid, {:to_all, Packets.despawn_player(player.id)})
+    if player do
+      Logger.info("Despawning player with id #{player_id}")
+      Players.remove(player_id)
+      send_to_all(Packets.message(player.id, Messages.player_leave(player.name)))
+      send_to_all(Packets.despawn_player(player.id))
+    end
   end
 end

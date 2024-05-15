@@ -20,25 +20,19 @@ defmodule Server do
       Level
     ]
 
-    {:ok, supervisor_pid} = Supervisor.start_link(children, strategy: :one_for_one, auto_shutdown: :never)
+    {:ok, _supervisor_pid} = Supervisor.start_link(children, strategy: :one_for_one, auto_shutdown: :never)
     
-    main(supervisor_pid)
+    main()
   end
   
-  def main(supervisor_id) do
+  def main() do
     Logger.info("Entering main loop")
     receive do
       {:shutdown} ->
         Logger.info("Shutting down server")
         System.stop(0)
-      {:to_all, packet} ->
-        Enum.map(Players.all(), & send(&1.sender_pid, packet))
-      {:to_all_except, player_id, packet} ->
-        Enum.map(Enum.reject(Players.all(), &(&1.id == player_id)), & send(&1.sender_pid, packet))
-      _ ->
-        Logger.info("Received unknown message")
     end
-    main(supervisor_id)
+    main()
   end
 
   def correct_password?(password) do
