@@ -22,8 +22,8 @@ defmodule Level do
       |> :zlib.gzip
   end
 
-  # TODO: guard clause
-  def set_block(<<x::16>>, <<y::16>>, <<z::16>>, <<mode::8>>, <<block::8>>) do
+  def set_block(<<x::16>>, <<y::16>>, <<z::16>>, <<mode::8>>, <<block::8>>) 
+      when x < @size_x and y < @size_y and z < @size_z do
     block_value =
       case mode do
         1 ->
