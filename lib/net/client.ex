@@ -8,10 +8,17 @@ defmodule Client do
     case :gen_tcp.recv(socket, 0) do
       {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
         if Server.correct_password?(password) do
-          player_id = create_player(socket, name)
-          send_to_all_except(player_id, Packets.spawn_player(name, player_id))
-          listen(socket, server_pid, player_id)
+          trimmedName = String.trim_trailing(name)
+          if (Players.name_in_use?(trimmedName)) do
+            Logger.warning("Client tried to connect with name that was already in use.", [desired_name: trimmedName])
+            :gen_tcp.send(socket, Packets.disconnect_player("Name already in use"))
+          else
+            player_id = create_player(socket, trimmedName)
+            send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
+            listen(socket, server_pid, player_id)
+          end
         else
+          Logger.warning("Client tried to connect with incorrect password.")
           :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
         end
       {:ok, packet} ->
@@ -44,7 +51,6 @@ defmodule Client do
   end
 
   defp create_player(socket, name) do
-    name = String.trim_trailing(name)
     Logger.info("Client connecting with name #{name}")
     other_players = Players.all() # Get list of players before the current one is added
     player_id = Players.add(name, socket)

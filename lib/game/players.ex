@@ -6,9 +6,13 @@ defmodule Players do
   end
   
   def add(name, socket) do
-    id = next_id()
-    Agent.update(__MODULE__, fn players -> [%Player{name: name, id: id, socket: socket} | players] end)
-    id
+    if name_in_use?(name) do
+      nil
+    else
+      id = next_id()
+      Agent.update(__MODULE__, fn players -> [%Player{name: name, id: id, socket: socket} | players] end)
+      id
+    end
   end
 
   def get(id) do
@@ -21,6 +25,10 @@ defmodule Players do
 
   def all() do
     Agent.get(__MODULE__, & &1)
+  end
+  
+  def name_in_use?(name) do
+    Agent.get(__MODULE__, fn players -> Enum.any?(players, &(&1.name == name)) end)
   end
 
   defp next_id do
