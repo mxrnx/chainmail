@@ -1,11 +1,25 @@
 defmodule Client do
   require Logger
   require String
-  
+
   @max_chunk_size 1024
-  
+
   def start(socket, server_pid) do
-    spawn_link(fn -> listen_for_identification(socket, server_pid) end)
+    case :gen_tcp.recv(socket, 0) do
+      {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
+        if Server.correct_password?(password) do
+          player_id = create_player(socket, name)
+          send_to_all_except(player_id, Packets.spawn_player(name, player_id))
+          listen(socket, server_pid, player_id)
+        else
+          :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
+        end
+      {:ok, packet} ->
+        Logger.error("Client send unexpected packet before identification.")
+        IO.inspect(packet, binaries: :as_binaries)
+      {:error, reason} ->
+        Logger.error("Could not receive from client: #{reason}")
+    end
   end
 
   def send_to_player(player_id, packet) do
@@ -28,7 +42,7 @@ defmodule Client do
         despawn_player(player_id)
     end
   end
-  
+
   defp create_player(socket, name) do
     name = String.trim_trailing(name)
     Logger.info("Client connecting with name #{name}")
@@ -49,18 +63,18 @@ defmodule Client do
 
     player_id # return player id in order to broadcast to other players
   end
-  
+
   defp send_level(player_id) do
     Level.to_gzip()
-      |> to_list
-      |> chunk_every(@max_chunk_size)
-      |> send_chunks(player_id)
+    |> to_list
+    |> chunk_every(@max_chunk_size)
+    |> send_chunks(player_id)
   end
-  
+
   defp send_chunks([chunk], player_id) do
     send_chunk(chunk, player_id)
   end
-  
+
   defp send_chunks([chunk | chunks], player_id) do
     Logger.info("Sending #{length(chunks) + 1} chunks")
     send_chunk(chunk, player_id)
@@ -70,15 +84,15 @@ defmodule Client do
   defp send_chunk(chunk, player_id) do
     send_to_player(player_id, Packets.level_data_chunk(chunk))
   end
-  
+
   defp to_list(<< head::8 >>) do
     [head]
   end
-  
+
   defp to_list(<< head::8, tail::binary >>) do
     [head | to_list(tail)]
   end
-  
+
   defp chunk_every(data, max_size) do
     if (length(data) <= max_size) do
       [data]
@@ -86,7 +100,7 @@ defmodule Client do
       [Enum.take(data, max_size) | chunk_every(Enum.drop(data, max_size), max_size)]
     end
   end
-  
+
   defp handle_packet(packet, player_id) do
     case packet do
       << 5, x::binary-size(2), y::binary-size(2), z::binary-size(2), mode::binary-size(1), block::binary-size(1) >> ->
@@ -98,33 +112,15 @@ defmodule Client do
         name = Players.get(player_id).name
         Logger.info(message)
         {:to_all, Packets.message(player_id, Messages.player_message(name, message))}
-      _ -> 
+      _ ->
         IO.inspect(packet, binaries: :as_binaries)
         nil
     end
   end
 
-  defp listen_for_identification(socket, server_pid) do
-    case :gen_tcp.recv(socket, 0) do
-      {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
-        if Server.correct_password?(password) do
-          player_id = create_player(socket, name)
-          send_to_all_except(player_id, Packets.spawn_player(name, player_id))
-          listen(socket, server_pid, player_id)
-        else
-          :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
-        end
-      {:ok, packet} ->
-        Logger.error("Client send unexpected packet before identification.")
-        IO.inspect(packet, binaries: :as_binaries)
-      {:error, reason} -> 
-        Logger.error("Could not receive from client: #{reason}")
-    end
-  end
-  
   defp listen(socket, server_pid, player_id) do
     case :gen_tcp.recv(socket, 0) do
-      {:ok, packet} -> 
+      {:ok, packet} ->
         action = handle_packet(packet, player_id)
         case action do
           {:to_all, packet} ->
@@ -134,7 +130,7 @@ defmodule Client do
           nil -> :ok
         end
         listen(socket, server_pid, player_id)
-      {:error, reason} -> 
+      {:error, reason} ->
         despawn_player(player_id)
         Logger.error("Could not receive from client: #{reason}")
     end
