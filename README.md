@@ -1,10 +1,7 @@
-# Chain
+# Chainmail
 
-**TODO: Add description**
+Chainmail is a server for Minecraft Classic.
 
-## Installation
+## Usage
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/chain>.
-
+Run with `mix run --no-halt`.

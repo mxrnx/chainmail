@@ -1,8 +1,8 @@
 defmodule ChainTest do
   use ExUnit.Case
-  doctest Chain
+  doctest Chainmail
 
   test "greets the world" do
-    assert Chain.hello() == :world
+    assert Chainmail.hello() == :world
   end
 end

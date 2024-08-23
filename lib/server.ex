@@ -10,6 +10,8 @@ defmodule Server do
   end
 
   def start() do
+    Logger.notice("Welcome to chainmail.")
+    
     # Set up supervisor
     children = [
       %{
@@ -26,7 +28,7 @@ defmodule Server do
   end
 
   def main() do
-    Logger.debug("Entering main loop")
+    Logger.debug("Entering main loop.")
 
     receive do
       {:shutdown} ->
