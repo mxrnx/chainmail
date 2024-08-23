@@ -12,6 +12,7 @@ defmodule Messages do
   end
 
   defp sanitize(message) do
-    String.trim_trailing(message, "&") # Messages ending with an ampersand crash vanilla clients
+    # Messages ending with an ampersand crash vanilla clients
+    String.trim_trailing(message, "&")
   end
 end

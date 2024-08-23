@@ -5,7 +5,7 @@ defmodule Generators do
     Enum.flat_map(1..Level.size_y, fn y ->
       Enum.flat_map(1..Level.size_z, fn _z ->
         Enum.map(1..Level.size_x, fn _x ->
-          set_testworld_block y
+          set_testworld_block(y)
         end)
       end)
     end)
