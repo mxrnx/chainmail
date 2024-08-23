@@ -10,7 +10,7 @@ defmodule Client do
         if Server.correct_password?(password) do
           trimmedName = String.trim_trailing(name)
           if (Players.name_in_use?(trimmedName)) do
-            Logger.warning("Client tried to connect with name that was already in use.", [desired_name: trimmedName])
+            Logger.notice("Client tried to connect with name that was already in use.", [name: trimmedName])
             :gen_tcp.send(socket, Packets.disconnect_player("Name already in use"))
           else
             player_id = create_player(socket, trimmedName)
@@ -18,14 +18,14 @@ defmodule Client do
             listen(socket, server_pid, player_id)
           end
         else
-          Logger.warning("Client tried to connect with incorrect password.")
+          Logger.notice("Client tried to connect with incorrect password.")
           :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
         end
       {:ok, packet} ->
-        Logger.error("Client send unexpected packet before identification.")
+        Logger.warning("Client send unexpected packet before identification.", [packet: packet])
         IO.inspect(packet, binaries: :as_binaries)
       {:error, reason} ->
-        Logger.error("Could not receive from client: #{reason}")
+        Logger.error("Could not receive from client.", [reason: reason])
     end
   end
 
@@ -51,7 +51,7 @@ defmodule Client do
   end
 
   defp create_player(socket, name) do
-    Logger.info("Client connecting with name #{name}")
+    Logger.info("Client connecting.", [name: name])
     other_players = Players.all() # Get list of players before the current one is added
     player_id = Players.add(name, socket)
     send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
@@ -66,6 +66,8 @@ defmodule Client do
     send_to_player(player_id, Packets.spawn_player(name))
     Enum.map(other_players, & send_to_player(player_id, Packets.spawn_player(&1.name, &1.id)))
     send_to_all(Packets.message(player_id, Messages.player_join(name)))
+    
+    Logger.info("Client connected.", [name: name, player_id: player_id])
 
     player_id # return player id in order to broadcast to other players
   end
@@ -82,7 +84,7 @@ defmodule Client do
   end
 
   defp send_chunks([chunk | chunks], player_id) do
-    Logger.info("Sending #{length(chunks) + 1} chunks")
+    Logger.debug("Sending #{length(chunks) + 1} chunks", [player_id: player_id])
     send_chunk(chunk, player_id)
     send_chunks(chunks, player_id)
   end
@@ -116,10 +118,10 @@ defmodule Client do
         {:to_all, Packets.move_player(player_id, x, y, z, yaw, pitch)}
       << 13, 255, message::binary-size(64) >> ->
         name = Players.get(player_id).name
-        Logger.info(message)
+        Logger.info("<#{name}> #{message}")
         {:to_all, Packets.message(player_id, Messages.player_message(name, message))}
       _ ->
-        IO.inspect(packet, binaries: :as_binaries)
+        Logger.debug("Received unknown packet from player.", [player_id: player_id, packet: Enum.join(:binary.bin_to_list(packet), " ")])
         nil
     end
   end
@@ -138,15 +140,15 @@ defmodule Client do
         listen(socket, server_pid, player_id)
       {:error, reason} ->
         despawn_player(player_id)
-        Logger.error("Could not receive from client: #{reason}")
+        Logger.error("Could not receive from client.", [reason: reason, player_id: player_id])
     end
   end
 
   defp despawn_player(player_id) do
-    Logger.info("Trying to despawn player with id #{player_id}")
+    Logger.debug("Trying to despawn player.", [player_id: player_id])
     player = Players.get(player_id)
     if player do
-      Logger.info("Despawning player with id #{player_id}")
+      Logger.info("Despawning player.", [player_id: player_id])
       Players.remove(player_id)
       send_to_all(Packets.message(player.id, Messages.player_leave(player.name)))
       send_to_all(Packets.despawn_player(player.id))

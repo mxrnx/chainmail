@@ -25,10 +25,10 @@ defmodule Level do
   def set_block(<<x::16>>, <<y::16>>, <<z::16>>, <<mode::8>>, <<block::8>>) do # TODO: guard clause
     block_value = case mode do
       1 -> 
-        Logger.info("Block #{block} set at (#{x}, #{y}, #{z})")
+        Logger.debug("Block #{block} set at (#{x}, #{y}, #{z})")
         block
       0 ->
-        Logger.info("Block destroyed at (#{x}, #{y}, #{z})")
+        Logger.debug("Block destroyed at (#{x}, #{y}, #{z})")
         0
     end
 

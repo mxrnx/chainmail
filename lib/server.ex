@@ -26,10 +26,10 @@ defmodule Server do
   end
   
   def main() do
-    Logger.info("Entering main loop")
+    Logger.debug("Entering main loop")
     receive do
       {:shutdown} ->
-        Logger.info("Shutting down server")
+        Logger.notice("Shutting down server.")
         System.stop(0)
     end
     main()
