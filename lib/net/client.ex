@@ -66,12 +66,13 @@ defmodule Client do
 
     send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
 
+    # Send level
     send_to_player(player_id, Packets.level_initialize())
     send_level(player_id)
     send_to_player(player_id, Packets.level_finalize())
 
-    # TODO: can be removed, pings should happen on a timer
-    send_to_player(player_id, Packets.ping())
+    # Start pinging
+    PingServer.start_link({player_id, 1000})
 
     # Spawn self and others
     send_to_player(player_id, Packets.spawn_player(name))
@@ -153,9 +154,6 @@ defmodule Client do
         case action do
           {:to_all, packet} ->
             send_to_all(packet)
-
-          {:to_all_except, player_id, packet} ->
-            send_to_all_except(player_id, packet)
 
           nil -> :ok
         end
