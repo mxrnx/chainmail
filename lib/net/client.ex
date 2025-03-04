@@ -90,6 +90,9 @@ defmodule Client do
 
       <<13, 255, message::binary-size(64)>> ->
         name = Players.get(player_id).name
+
+        # TODO: parse commands
+
         Logger.info("<#{name}> #{message}")
         {:to_all, Packets.message(player_id, Messages.player_message(name, message))}
 

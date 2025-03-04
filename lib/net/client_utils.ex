@@ -32,10 +32,11 @@ defmodule ClientUtils do
     player = Players.get(player_id)
 
     if player do
-      #TODO: hard close socket
-
       Logger.info("Despawning player.", player_id: player_id, name: player.name)
+
+      :gen_tcp.close(player.socket)
       Players.remove(player_id)
+
       send_to_all(Packets.message(player.id, Messages.player_leave(player.name)))
       send_to_all(Packets.despawn_player(player.id))
     end
