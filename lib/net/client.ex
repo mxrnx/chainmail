@@ -75,7 +75,7 @@ defmodule Client do
 
       {:error, reason} ->
         ClientUtils.despawn_player(player_id)
-        Logger.error("Could not receive from client.", reason: reason, player_id: player_id)
+        Logger.debug("Could not receive from client.", reason: reason, player_id: player_id)
     end
   end
 
