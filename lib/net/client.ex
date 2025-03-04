@@ -1,9 +1,7 @@
 defmodule Client do
   require Logger
   require String
-
-  @max_chunk_size 1024
-
+  
   def start(socket, server_pid) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
@@ -16,7 +14,7 @@ defmodule Client do
             :gen_tcp.send(socket, Packets.disconnect_player("Name already in use"))
           else
             player_id = create_player(socket, trimmedName)
-            send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
+            ClientUtils.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
             listen(socket, server_pid, player_id)
           end
         else
@@ -33,30 +31,6 @@ defmodule Client do
     end
   end
 
-  def send_to_player(player_id, packet) do
-    socket = Players.get(player_id).socket
-    send_to_socket(socket, packet, player_id)
-  end
-
-  def send_to_all(packet) do
-    Enum.map(Players.all(), &send_to_socket(&1.socket, packet, &1.id))
-  end
-
-  def send_to_all_except(player_id, packet) do
-    Enum.map(
-      Enum.reject(Players.all(), &(&1.id == player_id)),
-      &send_to_socket(&1.socket, packet, &1.id)
-    )
-  end
-
-  defp send_to_socket(socket, packet, player_id) do
-    case :gen_tcp.send(socket, packet) do
-      :ok -> :ok
-      {:error, _reason} ->
-        despawn_player(player_id)
-    end
-  end
-
   defp create_player(socket, name) do
     Logger.info("Client connecting.", name: name)
 
@@ -64,20 +38,20 @@ defmodule Client do
     other_players = Players.all()
     player_id = Players.add(name, socket)
 
-    send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
+    ClientUtils.send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
 
     # Send level
-    send_to_player(player_id, Packets.level_initialize())
-    send_level(player_id)
-    send_to_player(player_id, Packets.level_finalize())
+    ClientUtils.send_to_player(player_id, Packets.level_initialize())
+    ClientUtils.send_level(player_id)
+    ClientUtils.send_to_player(player_id, Packets.level_finalize())
 
     # Start pinging
-    PingServer.start_link({player_id, 1000})
+    PingServer.start_link(player_id)
 
     # Spawn self and others
-    send_to_player(player_id, Packets.spawn_player(name))
-    Enum.map(other_players, &send_to_player(player_id, Packets.spawn_player(&1.name, &1.id)))
-    send_to_all(Packets.message(player_id, Messages.player_join(name)))
+    ClientUtils.send_to_player(player_id, Packets.spawn_player(name))
+    Enum.map(other_players, &ClientUtils.send_to_player(player_id, Packets.spawn_player(&1.name, &1.id)))
+    ClientUtils.send_to_all(Packets.message(player_id, Messages.player_join(name)))
 
     Logger.info("Client connected.", name: name, player_id: player_id)
 
@@ -85,40 +59,23 @@ defmodule Client do
     player_id
   end
 
-  defp send_level(player_id) do
-    Level.to_gzip()
-    |> to_list
-    |> chunk_every(@max_chunk_size)
-    |> send_chunks(player_id)
-  end
+  defp listen(socket, server_pid, player_id) do
+    case :gen_tcp.recv(socket, 0) do
+      {:ok, packet} ->
+        action = handle_packet(packet, player_id)
 
-  defp send_chunks([chunk], player_id) do
-    send_chunk(chunk, player_id)
-  end
+        case action do
+          {:to_all, packet} ->
+            ClientUtils.send_to_all(packet)
 
-  defp send_chunks([chunk | chunks], player_id) do
-    Logger.debug("Sending #{length(chunks) + 1} chunks", player_id: player_id)
-    send_chunk(chunk, player_id)
-    send_chunks(chunks, player_id)
-  end
+          nil -> :ok
+        end
 
-  defp send_chunk(chunk, player_id) do
-    send_to_player(player_id, Packets.level_data_chunk(chunk))
-  end
+        listen(socket, server_pid, player_id)
 
-  defp to_list(<<head::8>>) do
-    [head]
-  end
-
-  defp to_list(<<head::8, tail::binary>>) do
-    [head | to_list(tail)]
-  end
-
-  defp chunk_every(data, max_size) do
-    if length(data) <= max_size do
-      [data]
-    else
-      [Enum.take(data, max_size) | chunk_every(Enum.drop(data, max_size), max_size)]
+      {:error, reason} ->
+        ClientUtils.despawn_player(player_id)
+        Logger.error("Could not receive from client.", reason: reason, player_id: player_id)
     end
   end
 
@@ -143,38 +100,6 @@ defmodule Client do
         )
 
         nil
-    end
-  end
-
-  defp listen(socket, server_pid, player_id) do
-    case :gen_tcp.recv(socket, 0) do
-      {:ok, packet} ->
-        action = handle_packet(packet, player_id)
-
-        case action do
-          {:to_all, packet} ->
-            send_to_all(packet)
-
-          nil -> :ok
-        end
-
-        listen(socket, server_pid, player_id)
-
-      {:error, reason} ->
-        despawn_player(player_id)
-        Logger.error("Could not receive from client.", reason: reason, player_id: player_id)
-    end
-  end
-
-  defp despawn_player(player_id) do
-    Logger.debug("Trying to despawn player.", player_id: player_id)
-    player = Players.get(player_id)
-
-    if player do
-      Logger.info("Despawning player.", player_id: player_id)
-      Players.remove(player_id)
-      send_to_all(Packets.message(player.id, Messages.player_leave(player.name)))
-      send_to_all(Packets.despawn_player(player.id))
     end
   end
 end

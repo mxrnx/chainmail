@@ -33,6 +33,7 @@ defmodule Server do
     receive do
       {:shutdown} ->
         Logger.notice("Shutting down server.")
+        # TODO: save level
         System.stop(0)
     end
 
