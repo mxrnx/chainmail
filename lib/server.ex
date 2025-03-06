@@ -1,30 +1,25 @@
 defmodule Server do
+  use Application
   require Logger
+
   @port 25565
   @password "chunky bacon"
 
-  def start(_, _) do
-    pid = spawn(fn -> start() end)
-
-    {:ok, pid}
-  end
-
-  def start() do
+  def start(_type, _args) do
     Logger.notice("Welcome to chainmail.")
-    
-    # Set up supervisor
+
     children = [
+      #{ConnectionListener, [@port, self()]}, # TODO use tuple notation for GenServers
       %{
-        id: Listener,
-        start: {Listener, :start, [@port, self()]}
+        id: ConnectionListener,
+        start: {ConnectionListener, :start, [@port, self()]}
       },
       Players,
       Level
     ]
 
-    {:ok, _supervisor_pid} = Supervisor.start_link(children, strategy: :one_for_one, auto_shutdown: :never)
-
-    main()
+    opts = [strategy: :one_for_one, name: Server.Supervisor]
+    Supervisor.start_link(children, opts)
   end
 
   def main() do
@@ -40,6 +35,7 @@ defmodule Server do
     main()
   end
 
+  # TODO: move elsewhere
   def correct_password?(password) do
     !@password || @password == String.trim_trailing(password)
   end

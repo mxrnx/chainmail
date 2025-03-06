@@ -1,4 +1,4 @@
-defmodule Listener do
+defmodule ConnectionListener do
   require Logger
 
   # Internal
