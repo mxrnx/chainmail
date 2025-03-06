@@ -4,8 +4,13 @@ defmodule ClientUtils do
   @max_chunk_size 1024
 
   def send_to_player(player_id, packet) do
-    socket = Players.get(player_id).socket
-    send_to_socket(socket, packet, player_id)
+    player = Players.get(player_id)
+    if player do
+      send_to_socket(player.socket, packet, player_id)
+      :ok
+    else
+      :error
+    end
   end
 
   def send_to_all(packet) do
@@ -24,6 +29,7 @@ defmodule ClientUtils do
       :ok -> :ok
       {:error, _reason} ->
         despawn_player(player_id)
+        :error
     end
   end
 
@@ -34,12 +40,16 @@ defmodule ClientUtils do
     if player do
       Logger.info("Despawning player.", player_id: player_id, name: player.name)
 
-      :gen_tcp.close(player.socket)
       Players.remove(player_id)
 
       send_to_all(Packets.message(player.id, Messages.player_leave(player.name)))
       send_to_all(Packets.despawn_player(player.id))
     end
+  end
+
+  def disconnect_player(socket, message) do
+    :gen_tcp.send(socket, Packets.disconnect_player(message))
+    :gen_tcp.close(socket)
   end
 
   def send_level(player_id) do

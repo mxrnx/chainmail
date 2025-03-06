@@ -28,17 +28,12 @@ defmodule PingServer do
     Logger.debug("PING player #{player_id}")
 
     # Try to ping the player. If during sending it turns out the pipe is broken, the player is despawned.
-    # If instead the player has already been despawned by a different process, this raises, so it's in
-    # a try block to prevent nasty errors.
-    try do
-      ClientUtils.send_to_player(player_id, Packets.ping())
-
-      # Schedule the next ping
-      Process.send_after(self(), :send_ping, @period_in_millis)
-
-      {:noreply, player_id}
-    rescue
-      _ ->
+    # Next iteration the player will not be found, so we enter the rescue block and quietly end this server.
+    case ClientUtils.send_to_player(player_id, Packets.ping()) do
+      :ok ->
+        Process.send_after(self(), :send_ping, @period_in_millis)
+        {:noreply, player_id}
+      :error ->
         Logger.debug("Player #{player_id} was already despawned when pinging.")
         {:stop, :normal, player_id}
     end

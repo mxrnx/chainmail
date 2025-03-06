@@ -11,7 +11,7 @@ defmodule Client do
           if Players.name_in_use?(trimmedName) do
             Logger.notice("Client tried to connect with name that was already in use.", name: trimmedName)
 
-            :gen_tcp.send(socket, Packets.disconnect_player("Name already in use"))
+            ClientUtils.disconnect_player(socket, "Name already in use")
           else
             player_id = create_player(socket, trimmedName)
             ClientUtils.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
@@ -19,7 +19,7 @@ defmodule Client do
           end
         else
           Logger.notice("Client tried to connect with incorrect password.")
-          :gen_tcp.send(socket, Packets.disconnect_player("Incorrect password"))
+          ClientUtils.disconnect_player(socket, "Incorrect password")
         end
 
       {:ok, packet} ->
@@ -59,6 +59,7 @@ defmodule Client do
     player_id
   end
 
+  # TODO: split listener logic away from client initialization logic
   defp listen(socket, server_pid, player_id) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, packet} ->
