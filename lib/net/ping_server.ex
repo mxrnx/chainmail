@@ -16,13 +16,13 @@ defmodule PingServer do
     {:ok, client_sender_id}
   end
 
-  @impl true
   @doc """
     Instruct the client sender to ping the player. Note that the point of this is that if during sending it turns out 
     the pipe was broken at some point, the player is despawned.
   """
+  @impl true
   def handle_info(:send_ping, client_sender_id) do
-    GenServer.cast(client_sender_id, :send_ping)
+    ClientSender.send_ping(client_sender_id)
     schedule_ping()
     {:noreply, client_sender_id}
   end

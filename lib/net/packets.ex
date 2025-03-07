@@ -1,9 +1,9 @@
 defmodule Packets do
   require Level
 
-  def server_identification(name, motd, mod?) do
-    mod_byte = if mod?, do: 0x64, else: 0
-    <<0, 7>> <> pad_string(name) <> pad_string(motd) <> <<mod_byte>>
+  def server_identification(name, motd, operator?) do
+    operator_byte = if operator?, do: 0x64, else: 0
+    <<0, 7>> <> pad_string(name) <> pad_string(motd) <> <<operator_byte>>
   end
 
   def ping() do
@@ -67,13 +67,9 @@ defmodule Packets do
       data
     end
   end
-
-  defp to_binary([head]) do
-    <<head::8>>
-  end
-
-  defp to_binary([head | tail]) do
-    <<head::8>> <> to_binary(tail)
+  
+  defp to_binary(list) do
+    for x <- list, do: <<x::8>>, into: <<>>
   end
 
   defp pad_string(string) do

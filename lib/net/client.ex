@@ -38,17 +38,17 @@ defmodule Client do
 
     {:ok, client_sender_id} = ClientSender.start_link(socket)
     player_id = Players.add(name, client_sender_id)
-    GenServer.cast(client_sender_id, {:set_player_id, player_id})
+    ClientSender.set_player_id(client_sender_id, player_id)
 
-    GenServer.cast(client_sender_id, {:send_packet, Packets.server_identification("Elixir server", "Server running on elixir", false)})
+    ClientSender.send_packet(client_sender_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
 
     # Send level
-    GenServer.cast(client_sender_id, :send_level)
+    ClientSender.send_level(client_sender_id)
 
     # Spawn self and others
     # TODO: move to broadcaster?
-    GenServer.cast(client_sender_id, {:send_packet, Packets.spawn_player(name)})
-    Enum.map(other_players, &GenServer.cast(client_sender_id, {:send_packet, Packets.spawn_player(&1.name, &1.id)}))
+    ClientSender.send_packet(client_sender_id, Packets.spawn_player(name))
+    Enum.map(other_players, &ClientSender.send_packet(client_sender_id, Packets.spawn_player(&1.name, &1.id)))
     
     ClientBroadcaster.send_to_all(Packets.message(player_id, Messages.player_join(name)))
 

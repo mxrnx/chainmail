@@ -11,6 +11,28 @@ defmodule ClientSender do
     GenServer.start_link(__MODULE__, {socket, nil})
   end
   
+  def set_player_id(pid, player_id) do
+    GenServer.cast(pid, {:set_player_id, player_id})
+  end
+  
+  def send_ping(pid) do
+    GenServer.cast(pid, :send_ping)
+  end
+  
+  def send_packet(pid, packet) do
+    GenServer.cast(pid, {:send_packet, packet})
+  end
+  
+  def send_level(pid) do
+    GenServer.cast(pid, :send_level)
+  end
+  
+  def disconnect_player(pid, message) do
+    GenServer.cast(pid, {:disconnect_player, message})
+  end
+  
+  # -- Callbacks --
+  
   @impl true
   def init({socket, nil}) do
     Logger.debug("Starting ClientSender")
@@ -61,7 +83,7 @@ defmodule ClientSender do
   # -- Private helpers --
 
   defp send_packet(packet) do
-    GenServer.cast(self(), {:send_packet, packet})
+    send_packet(self(), packet)
   end
 
   defp send_chunks([chunk]) do

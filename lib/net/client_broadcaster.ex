@@ -2,13 +2,13 @@ defmodule ClientBroadcaster do
   require Logger
   
   def send_to_all(packet) do
-    Enum.map(Players.all(), &GenServer.cast(&1.client_sender_id, {:send_packet, packet}))
+    Enum.map(Players.all(), &ClientSender.send_packet(&1.client_sender_id, packet))
   end
 
   def send_to_all_except(player_id, packet) do
     Enum.map(
       Enum.reject(Players.all(), &(&1.id == player_id)),
-      &GenServer.cast(&1.client_sender_id, {:send_packet, packet})
+      &ClientSender.send_packet(&1.client_sender_id, packet)
     )
   end
   
