@@ -34,8 +34,7 @@ defmodule Client do
   defp create_player(socket, name) do
     Logger.info("Client connecting.", name: name)
 
-    other_players = Players.all()
-
+    # Start up sender for the player, which in turn starts up a ping server to keep the connection alive
     {:ok, client_sender_id} = ClientSender.start_link(socket)
     player_id = Players.add(name, client_sender_id)
     ClientSender.set_player_id(client_sender_id, player_id)
@@ -46,11 +45,7 @@ defmodule Client do
     ClientSender.send_level(client_sender_id)
 
     # Spawn self and others
-    # TODO: move to broadcaster?
-    ClientSender.send_packet(client_sender_id, Packets.spawn_player(name))
-    Enum.map(other_players, &ClientSender.send_packet(client_sender_id, Packets.spawn_player(&1.name, &1.id)))
-    
-    ClientBroadcaster.send_to_all(Packets.message(player_id, Messages.player_join(name)))
+    ClientBroadcaster.spawn_player(player_id)
 
     Logger.info("Client connected.", name: name, player_id: player_id)
 
