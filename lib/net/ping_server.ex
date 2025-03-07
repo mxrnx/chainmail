@@ -12,15 +12,8 @@ defmodule PingServer do
   @impl true
   def init(client_sender_id) do
     Logger.debug("Starting PingServer")
-    {:ok, client_sender_id, {:continue, :init}}
-  end
-
-  # TODO: can we do without this?
-  @impl true
-  def handle_continue(:init, client_sender_id) do
-    # Send the first ping asynchronously
-    send(self(), :send_ping)
-    {:noreply, client_sender_id}
+    schedule_ping()
+    {:ok, client_sender_id}
   end
 
   @impl true
@@ -29,8 +22,12 @@ defmodule PingServer do
     the pipe was broken at some point, the player is despawned.
   """
   def handle_info(:send_ping, client_sender_id) do
-    send(client_sender_id, :send_ping)
-    Process.send_after(self(), :send_ping, @period_in_millis)
+    GenServer.cast(client_sender_id, :send_ping)
+    schedule_ping()
     {:noreply, client_sender_id}
+  end
+  
+  defp schedule_ping() do
+    Process.send_after(self(), :send_ping, @period_in_millis)
   end
 end

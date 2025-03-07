@@ -22,18 +22,18 @@ defmodule ClientSender do
   end
   
   @impl true
-  def handle_info({:set_player_id, player_id}, {socket, _}) do
+  def handle_cast({:set_player_id, player_id}, {socket, _}) do
     {:noreply, {socket, player_id}}
   end
   
   @impl true
-  def handle_info(:send_ping, {socket, player_id}) do
+  def handle_cast(:send_ping, {socket, player_id}) do
     send_packet(Packets.ping())
     {:noreply, {socket, player_id}}
   end
   
   @impl true
-  def handle_info({:send_packet, packet}, {socket, player_id}) do
+  def handle_cast({:send_packet, packet}, {socket, player_id}) do
     case Tcp.send(socket, packet) do
       :ok ->
         {:noreply, {socket, player_id}}
@@ -43,7 +43,7 @@ defmodule ClientSender do
     end
   end
 
-  def handle_info(:send_level, {socket, player_id}) do
+  def handle_cast(:send_level, {socket, player_id}) do
     send_packet(Packets.level_initialize())
     Level.to_gzip()
     |> binary_to_list
@@ -53,7 +53,7 @@ defmodule ClientSender do
     {:noreply, {socket, player_id}}
   end
 
-  def handle_info({:disconnect_player, message}, {socket, player_id}) do
+  def handle_cast({:disconnect_player, message}, {socket, player_id}) do
     Tcp.disconnect(socket, message)
     {:noreply, {socket, player_id}}
   end
@@ -61,7 +61,7 @@ defmodule ClientSender do
   # -- Private helpers --
 
   defp send_packet(packet) do
-    send(self(), {:send_packet, packet})
+    GenServer.cast(self(), {:send_packet, packet})
   end
 
   defp send_chunks([chunk]) do
