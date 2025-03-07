@@ -23,7 +23,7 @@ defmodule ConnectionListener do
     case :gen_tcp.accept(listen_socket) do
       {:ok, socket} ->
         Logger.debug("Client connecting...")
-        spawn_link(fn -> Client.start(socket, server_pid) end)
+        spawn_link(fn -> Client.start(socket) end)
         Logger.debug("Client connected!")
         listen(listen_socket, server_pid)
 

@@ -5,14 +5,14 @@ defmodule Players do
     Agent.start_link(fn -> [] end, name: __MODULE__)
   end
 
-  def add(name, socket) do
+  def add(name, client_sender_id) do
     if name_in_use?(name) do
       nil
     else
       id = next_id()
 
       Agent.update(__MODULE__, fn players ->
-        [%Player{name: name, id: id, socket: socket} | players]
+        [%Player{name: name, id: id, client_sender_id: client_sender_id} | players]
       end)
 
       id

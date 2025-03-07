@@ -2,7 +2,7 @@ defmodule Client do
   require Logger
   require String
   
-  def start(socket, server_pid) do
+  def start(socket) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, <<0, 7, name::binary-size(64), password::binary-size(64), _unused::binary-size(1)>>} ->
         if Server.correct_password?(password) do
@@ -11,15 +11,15 @@ defmodule Client do
           if Players.name_in_use?(trimmedName) do
             Logger.notice("Client tried to connect with name that was already in use.", name: trimmedName)
 
-            ClientUtils.disconnect_player(socket, "Name already in use")
+            Tcp.disconnect(socket, "Name already in use")
           else
             player_id = create_player(socket, trimmedName)
-            ClientUtils.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
-            listen(socket, server_pid, player_id)
+            ClientBroadcaster.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
+            listen(socket, player_id)
           end
         else
           Logger.notice("Client tried to connect with incorrect password.")
-          ClientUtils.disconnect_player(socket, "Incorrect password")
+          Tcp.disconnect(socket, "Incorrect password")
         end
 
       {:ok, packet} ->
@@ -30,28 +30,27 @@ defmodule Client do
         Logger.error("Could not receive from client before identification.", reason: reason)
     end
   end
-
+  
   defp create_player(socket, name) do
     Logger.info("Client connecting.", name: name)
 
-    # Get list of players before the current one is added
     other_players = Players.all()
-    player_id = Players.add(name, socket)
 
-    ClientUtils.send_to_player(player_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
+    {:ok, client_sender_id} = ClientSender.start_link(socket)
+    player_id = Players.add(name, client_sender_id)
+    send(client_sender_id, {:set_player_id, player_id})
+
+    send(client_sender_id, {:send_packet, Packets.server_identification("Elixir server", "Server running on elixir", false)})
 
     # Send level
-    ClientUtils.send_to_player(player_id, Packets.level_initialize())
-    ClientUtils.send_level(player_id)
-    ClientUtils.send_to_player(player_id, Packets.level_finalize())
-
-    # Start pinging
-    PingServer.start_link(player_id)
+    send(client_sender_id, :send_level)
 
     # Spawn self and others
-    ClientUtils.send_to_player(player_id, Packets.spawn_player(name))
-    Enum.map(other_players, &ClientUtils.send_to_player(player_id, Packets.spawn_player(&1.name, &1.id)))
-    ClientUtils.send_to_all(Packets.message(player_id, Messages.player_join(name)))
+    # TODO: move to broadcaster?
+    send(client_sender_id, {:send_packet, Packets.spawn_player(name)})
+    Enum.map(other_players, &send(client_sender_id, {:send_packet, Packets.spawn_player(&1.name, &1.id)}))
+    
+    ClientBroadcaster.send_to_all(Packets.message(player_id, Messages.player_join(name)))
 
     Logger.info("Client connected.", name: name, player_id: player_id)
 
@@ -60,22 +59,22 @@ defmodule Client do
   end
 
   # TODO: split listener logic away from client initialization logic
-  defp listen(socket, server_pid, player_id) do
+  defp listen(socket, player_id) do
     case :gen_tcp.recv(socket, 0) do
       {:ok, packet} ->
         action = handle_packet(packet, player_id)
 
         case action do
           {:to_all, packet} ->
-            ClientUtils.send_to_all(packet)
+            ClientBroadcaster.send_to_all(packet)
 
           nil -> :ok
         end
 
-        listen(socket, server_pid, player_id)
+        listen(socket, player_id)
 
       {:error, reason} ->
-        ClientUtils.despawn_player(player_id)
+        ClientBroadcaster.despawn_player(player_id)
         Logger.debug("Could not receive from client.", reason: reason, player_id: player_id)
     end
   end
