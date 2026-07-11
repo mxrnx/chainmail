@@ -9,7 +9,6 @@ defmodule Server do
     Logger.notice("Welcome to chainmail.")
 
     children = [
-      #{ConnectionListener, [@port, self()]}, # TODO use tuple notation for GenServers
       %{
         id: ConnectionListener,
         start: {ConnectionListener, :start, [@port, self()]}
@@ -29,6 +28,7 @@ defmodule Server do
       {:shutdown} ->
         Logger.notice("Shutting down server.")
         # TODO: save level
+        # TODO: broadcast shutdown to clients
         System.stop(0)
     end
 

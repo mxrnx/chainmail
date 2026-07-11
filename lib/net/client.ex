@@ -8,15 +8,11 @@ defmodule Client do
         if Server.correct_password?(password) do
           trimmedName = String.trim_trailing(name)
 
-          if Players.name_in_use?(trimmedName) do
-            Logger.notice("Client tried to connect with name that was already in use.", name: trimmedName)
-
-            Tcp.disconnect(socket, "Name already in use")
-          else
             player_id = create_player(socket, trimmedName)
-            ClientBroadcaster.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
-            listen(socket, player_id)
-          end
+            if player_id do
+              ClientBroadcaster.send_to_all_except(player_id, Packets.spawn_player(trimmedName, player_id))
+              listen(socket, player_id)
+            end
         else
           Logger.notice("Client tried to connect with incorrect password.")
           Tcp.disconnect(socket, "Incorrect password")
@@ -31,26 +27,34 @@ defmodule Client do
     end
   end
   
+  # TODO: this chain of checks, continued both here and in the function above, is a bit messy. refactor
   defp create_player(socket, name) do
     Logger.info("Client connecting.", name: name)
 
     # Start up sender for the player, which in turn starts up a ping server to keep the connection alive
     {:ok, client_sender_id} = ClientSender.start_link(socket)
     player_id = Players.add(name, client_sender_id)
-    ClientSender.set_player_id(client_sender_id, player_id)
 
-    ClientSender.send_packet(client_sender_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
+    if player_id do
+      ClientSender.set_player_id(client_sender_id, player_id)
 
-    # Send level
-    ClientSender.send_level(client_sender_id)
+      ClientSender.send_packet(client_sender_id, Packets.server_identification("Elixir server", "Server running on elixir", false))
 
-    # Spawn self and others
-    ClientBroadcaster.spawn_player(player_id)
+      # Send level
+      ClientSender.send_level(client_sender_id)
 
-    Logger.info("Client connected.", name: name, player_id: player_id)
+      # Spawn self and others
+      ClientBroadcaster.spawn_player(player_id)
 
-    # Return player id in order to broadcast to other players
-    player_id
+      Logger.info("Client connected.", name: name, player_id: player_id)
+
+      # Return player id in order to broadcast to other players
+      player_id
+    else
+      Logger.notice("Client tried to connect with name that was already in use.", name: name)
+      Tcp.disconnect(socket, "Name already in use")
+      nil
+    end
   end
 
   # TODO: split listener logic away from client initialization logic

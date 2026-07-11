@@ -6,17 +6,15 @@ defmodule Players do
   end
 
   def add(name, client_sender_id) do
-    if name_in_use?(name) do
-      nil
-    else
-      id = next_id()
-
-      Agent.update(__MODULE__, fn players ->
-        [%Player{name: name, id: id, client_sender_id: client_sender_id} | players]
-      end)
-
-      id
-    end
+    Agent.get_and_update(__MODULE__, fn players ->
+      if Enum.any?(players, &(&1.name == name)) do
+        {nil, players} # return nil on name already in use
+      else
+        id = next_id(players)
+        new_player = %Player{name: name, id: id, client_sender_id: client_sender_id}
+        {id, [new_player | players]}
+      end
+    end)
   end
 
   def get(id) do
@@ -31,12 +29,8 @@ defmodule Players do
     Agent.get(__MODULE__, & &1)
   end
 
-  def name_in_use?(name) do
-    Agent.get(__MODULE__, fn players -> Enum.any?(players, &(&1.name == name)) end)
-  end
-
-  defp next_id do
-    next_id(1, Agent.get(__MODULE__, fn players -> Enum.map(players, & &1.id) end))
+  defp next_id(players) do
+    next_id(1, Enum.map(players, & &1.id))
   end
 
   defp next_id(id, ids) do
